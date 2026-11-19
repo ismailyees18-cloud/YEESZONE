@@ -1,25 +1,136 @@
+
 <!doctype html>
 <html lang="ha">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#111827"><title>YEESZONE — Shop. Sell. Discover.</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>YEESZONE — Shop. Sell. Discover.</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="#home"><span class="brand-mark">Y</span><span>YEESZONE<small>Shop. Sell. Discover.</small></span></a>
-    <nav><button class="nav-btn active" data-view="home">Marketplace</button><button class="nav-btn" data-view="seller">Seller</button><button class="nav-btn" data-view="admin">Admin</button></nav>
-    <div class="account"><span id="user-label">Ba a shiga ba</span><button id="auth-open" class="btn btn-light">Login / Sign up</button><button id="logout" class="btn btn-dark hidden">Fita</button></div>
+    <a class="brand" href="#home">
+      <span class="brand-mark">Y</span>
+      <span>YEESZONE<small>Shop. Sell. Discover.</small></span>
+    </a>
+    <nav>
+      <button class="nav-btn active" data-view="home">Marketplace</button>
+      <button class="nav-btn" data-view="seller">Seller</button>
+      <button class="nav-btn" data-view="admin">Admin</button>
+    </nav>
+    <div class="account">
+      <span id="user-label">Ba a shiga ba</span>
+      <button id="auth-open" class="btn btn-light">Login / Sign up</button>
+      <button id="logout" class="btn btn-dark hidden">Fita</button>
+    </div>
   </header>
+
   <main>
     <section id="home-view" class="view">
-      <div class="hero"><div><p class="eyebrow">WELCOME TO YEESZONE</p><h1>Shop. Sell.<br><em>Discover.</em></h1><p class="hero-copy">Wuri guda da za ka gano kayayyaki da ayyuka, sannan masu sayarwa su buɗe shaguna.</p><div class="hero-actions"><button class="btn btn-primary" id="browse-btn">Duba kayayyaki</button><button class="btn btn-outline" id="seller-cta">Fara sayarwa</button></div></div><div class="hero-art"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="hero-card"><span>Y</span><strong>YEESZONE</strong><small>Marketplace</small></div><div class="float-tag tag-one">🛍️ Shop</div><div class="float-tag tag-two">🚀 Sell</div></div></div>
-      <section class="section" id="listings-section"><div class="section-head"><div><p class="eyebrow">EXPLORE</p><h2>Sabbin kayayyaki da ayyuka</h2></div><input id="search" class="search" placeholder="Nemo kaya ko sabis…" aria-label="Nemo kaya ko sabis"></div><div id="status" class="notice">Ana shirya marketplace…</div><div id="listings" class="listing-grid"></div></section>
+      <div class="hero">
+        <div>
+          <p class="eyebrow">WELCOME TO YEESZONE</p>
+          <h1>Shop. Sell.<br><em>Discover.</em></h1>
+          <p class="hero-copy">Wuri guda da za ka gano kayayyaki da ayyuka, sannan masu sayarwa su buɗe shaguna.</p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" id="browse-btn">Duba kayayyaki</button>
+            <button class="btn btn-outline" id="seller-cta">Fara sayarwa</button>
+          </div>
+        </div>
+        <div class="hero-art">
+          <div class="orbit orbit-one"></div>
+          <div class="orbit orbit-two"></div>
+          <div class="hero-card">
+            <span>Y</span>
+            <strong>YEESZONE</strong>
+            <small>Marketplace</small>
+          </div>
+          <div class="float-tag tag-one">🛍️ Shop</div>
+          <div class="float-tag tag-two">🚀 Sell</div>
+        </div>
+      </div>
+
+      <section class="section" id="listings-section">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">EXPLORE</p>
+            <h2>Sabbin kayayyaki da ayyuka</h2>
+          </div>
+          <input id="search" class="search" placeholder="Nemo kaya ko sabis…" aria-label="Nemo kaya ko sabis">
+        </div>
+        <div id="status" class="notice">Ana shirya marketplace…</div>
+        <div id="listings" class="listing-grid"></div>
+      </section>
     </section>
-    <section id="seller-view" class="view hidden"><div class="page-heading"><p class="eyebrow">SELLER SPACE</p><h1>Seller Dashboard</h1><p>Gudanar da shagonka da kayayyakin da kake sayarwa.</p></div><div class="dashboard-grid"><article class="panel"><h3>Shagona</h3><p>Da zarar an tabbatar da tsarin shago a database, za a nuna bayanan shagonka a nan.</p></article><article class="panel"><h3>Kayayyaki na</h3><p>Za a kunna ƙara kaya da gyara bayan an tabbatar da sunayen columns da RLS policies na listings.</p></article><article class="panel"><h3>Oda</h3><p>Za a haɗa odar sayayya ta hanyar tsaro a server, ba daga browser kai tsaye ba.</p></article></div></section>
-    <section id="admin-view" class="view hidden"><div class="page-heading"><p class="eyebrow">CONTROL CENTER</p><h1>Admin Dashboard</h1><p>Wannan shafin samfuri ne kawai. Ba a kunna ikon gudanarwa ba tukuna.</p></div><div class="notice warning">Muhimmi: za a kare ayyukan admin ta hanyar tabbatar da role a database/server. Kada a dogara da ɓoye ko nuna maɓalli a browser kawai.</div></section>
+
+    <section id="seller-view" class="view hidden">
+      <div class="page-heading">
+        <p class="eyebrow">SELLER SPACE</p>
+        <h1>Buɗe Shagona a YEESZONE</h1>
+        <p>Cika bayanan shagonka domin neman izinin sayarwa.</p>
+      </div>
+      <div class="dashboard-grid">
+        <article class="panel">
+          <h3>Rajistar Shago</h3>
+          <form id="shop-form">
+            <label for="shop-name">Sunan shago</label>
+            <input id="shop-name" type="text" required maxlength="80" placeholder="Misali: Aliyu Fashion Store">
+
+            <label for="shop-description">Bayanin shago</label>
+            <textarea id="shop-description" required maxlength="500" rows="4" placeholder="Bayyana irin kayayyakin da kake sayarwa..."></textarea>
+
+            <button class="btn btn-primary" id="shop-submit" type="submit">Miƙa buƙatar buɗe shago</button>
+            <p id="shop-message" class="form-message" role="status"></p>
+          </form>
+        </article>
+      </div>
+    </section>
+
+    <section id="admin-view" class="view hidden">
+      <div class="page-heading">
+        <p class="eyebrow">CONTROL CENTER</p>
+        <h1>Admin Dashboard</h1>
+        <p>Wannan shafin samfuri ne kawai. Ba a kunna ikon gudanarwa ba tukuna.</p>
+      </div>
+      <div class="notice warning">
+        Muhimmi: za a kare ayyukan admin ta hanyar tabbatar da role a database/server. Kada a dogara da ɓoye ko nuna maɓalli a browser kawai.
+      </div>
+    </section>
   </main>
-  <footer><strong>YEESZONE</strong><span>Shop. Sell. Discover.</span><small>© <span id="year"></span> YEESZONE</small></footer>
-  <dialog id="auth-dialog"><form method="dialog" class="dialog-card" id="auth-form"><button class="close" value="cancel" aria-label="Rufe">×</button><p class="eyebrow">YOUR ACCOUNT</p><h2 id="auth-title">Shiga YEESZONE</h2><label>Email<input id="email" type="email" autocomplete="email" required placeholder="name@example.com"></label><label>Password<input id="password" type="password" autocomplete="current-password" required minlength="6" placeholder="Aƙalla haruffa 6"></label><div class="auth-actions"><button type="button" id="login-btn" class="btn btn-primary">Login</button><button type="button" id="signup-btn" class="btn btn-outline">Ƙirƙiri account</button></div><p id="auth-message" class="form-message" role="status"></p><small>Ta hanyar ƙirƙirar account, kana amincewa da ƙa'idodin amfani da shafin.</small></form></dialog>
+
+  <footer>
+    <strong>YEESZONE</strong>
+    <span>Shop. Sell. Discover.</span>
+    <small>© <span id="year"></span> YEESZONE</small>
+  </footer>
+
+  <dialog id="auth-dialog">
+    <form method="dialog" class="dialog-card" id="auth-form">
+      <button class="close" value="cancel" aria-label="Rufe">×</button>
+      <p class="eyebrow">YOUR ACCOUNT</p>
+      <h2 id="auth-title">Shiga YEESZONE</h2>
+
+      <label>
+        Email
+        <input id="email" type="email" autocomplete="email" required placeholder="name@example.com">
+      </label>
+
+      <label>
+        Password
+        <input id="password" type="password" autocomplete="current-password" required minlength="6" placeholder="Aƙalla haruffa 6">
+      </label>
+
+      <div class="auth-actions">
+        <button type="button" id="login-btn" class="btn btn-primary">Login</button>
+        <button type="button" id="signup-btn" class="btn btn-outline">Ƙirƙiri account</button>
+      </div>
+
+      <p id="auth-message" class="form-message" role="status"></p>
+      <small>Ta hanyar ƙirƙirar account, kana amincewa da ƙa'idodin amfani da shafin.</small>
+    </form>
+  </dialog>
+
   <script type="module" src="app.js"></script>
-</body></html>
+</body>
+</html>
