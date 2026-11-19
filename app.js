@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
@@ -35,6 +34,7 @@ function updateAccountUI() {
 
 function money(value) {
   const n = Number(value);
+
   return Number.isFinite(n)
     ? `₦${n.toLocaleString('en-NG')}`
     : 'Farashi bai bayyana ba';
@@ -59,11 +59,16 @@ function renderListings(items) {
 
     card.innerHTML = '<span class="listing-type"></span><h3></h3><p></p><div class="price"></div>';
 
-    card.querySelector('.listing-type').textContent = String(type).toUpperCase();
+    card.querySelector('.listing-type').textContent =
+      String(type).toUpperCase();
+
     card.querySelector('h3').textContent = title;
     card.querySelector('p').textContent = description;
+
     card.querySelector('.price').textContent =
-      item.price == null ? 'A tuntubi mai sayarwa' : money(item.price);
+      item.price == null
+        ? 'A tuntubi mai sayarwa'
+        : money(item.price);
 
     root.appendChild(card);
   }
@@ -131,7 +136,8 @@ $('auth-open').addEventListener('click', () => {
 
 $('login-btn').addEventListener('click', async () => {
   if (!supabase) {
-    $('auth-message').textContent = 'Ba a haɗa database ba. Duba config.js.';
+    $('auth-message').textContent =
+      'Ba a haɗa database ba. Duba config.js.';
     return;
   }
 
@@ -139,7 +145,8 @@ $('login-btn').addEventListener('click', async () => {
   const password = $('password').value;
 
   if (!email || !password) {
-    $('auth-message').textContent = 'Shigar da email da password.';
+    $('auth-message').textContent =
+      'Shigar da email da password.';
     return;
   }
 
@@ -171,7 +178,8 @@ $('login-btn').addEventListener('click', async () => {
 
 $('signup-btn').addEventListener('click', async () => {
   if (!supabase) {
-    $('auth-message').textContent = 'Ba a haɗa database ba. Duba config.js.';
+    $('auth-message').textContent =
+      'Ba a haɗa database ba. Duba config.js.';
     return;
   }
 
@@ -179,7 +187,8 @@ $('signup-btn').addEventListener('click', async () => {
   const password = $('password').value;
 
   if (!email || !password || password.length < 6) {
-    $('auth-message').textContent = 'Shigar da email da password mai aƙalla haruffa 6.';
+    $('auth-message').textContent =
+      'Shigar da email da password mai aƙalla haruffa 6.';
     return;
   }
 
@@ -235,6 +244,123 @@ async function refreshSession() {
   updateAccountUI();
 }
 
+/* SHOP REGISTRATION */
+
+function makeShopSlug(name) {
+  const base = name
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 50) || 'shop';
+
+  const suffix = Math.random().toString(36).slice(2, 8);
+
+  return `${base}-${suffix}`;
+}
+
+function shopStatusText(status) {
+  if (status === 'approved') {
+    return 'An amince da shagonka.';
+  }
+
+  if (status === 'suspended') {
+    return 'An dakatar da shagonka. Tuntuɓi masu gudanarwa.';
+  }
+
+  return 'An riga an aika buƙatar shagonka. Ana jiran amincewa.';
+}
+
+$('shop-form').addEventListener('submit', async event => {
+  event.preventDefault();
+
+  const shopMessage = $('shop-message');
+  const submitButton = $('shop-submit');
+
+  shopMessage.textContent = '';
+
+  if (!supabase) {
+    shopMessage.textContent =
+      'Ba a haɗa database ba. Duba config.js.';
+    return;
+  }
+
+  if (!currentUser) {
+    shopMessage.textContent =
+      'Da farko ka shiga account ɗinka kafin buɗe shago.';
+    return;
+  }
+
+  const name = $('shop-name').value.trim();
+  const description = $('shop-description').value.trim();
+
+  if (name.length < 2) {
+    shopMessage.textContent =
+      'Sunan shago ya zama aƙalla haruffa biyu.';
+    return;
+  }
+
+  if (!description) {
+    shopMessage.textContent =
+      'Ka rubuta bayanin shagonka.';
+    return;
+  }
+
+  submitButton.disabled = true;
+  submitButton.textContent = 'Ana aika buƙata...';
+
+  try {
+    // Duba ko mai amfani ya riga ya mallaki shago.
+    const { data: existingShop, error: checkError } = await supabase
+      .from('shops')
+      .select('id, name, status')
+      .eq('owner_id', currentUser.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (checkError) {
+      throw new Error(
+        'Ba a iya duba bayanan shago ba: ' + checkError.message
+      );
+    }
+
+    if (existingShop) {
+      shopMessage.textContent =
+        `${shopStatusText(existingShop.status)} Sunan shago: ${existingShop.name}`;
+
+      return;
+    }
+
+    // Database ne zai sanya status = pending.
+    const { error: insertError } = await supabase
+      .from('shops')
+      .insert({
+        owner_id: currentUser.id,
+        name,
+        slug: makeShopSlug(name),
+        description
+      });
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    shopMessage.textContent =
+      'An aika buƙatar buɗe shago cikin nasara! Ana jiran amincewar masu gudanarwa.';
+
+    $('shop-form').reset();
+
+  } catch (error) {
+    shopMessage.textContent =
+      'An samu matsala: ' + error.message;
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = 'Miƙa buƙatar buɗe shago';
+  }
+});
+
 if (supabase) {
   supabase.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user || null;
@@ -244,4 +370,3 @@ if (supabase) {
 
 await refreshSession();
 await loadListings();
-
