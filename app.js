@@ -15,6 +15,7 @@ const supabase = configured
 
 let currentUser = null;
 let allListings = [];
+let adminVerified = false;
 
 $('year').textContent = new Date().getFullYear();
 
@@ -105,6 +106,10 @@ function showView(name) {
   document.querySelectorAll('.nav-btn').forEach(button => {
     button.classList.toggle('active', button.dataset.view === name);
   });
+
+  if (name === 'admin') {
+    loadAdminDashboard();
+  }
 }
 
 document.querySelectorAll('.nav-btn').forEach(button => {
@@ -223,6 +228,7 @@ $('logout').addEventListener('click', async () => {
   }
 
   currentUser = null;
+  adminVerified = false;
   updateAccountUI();
   showView('home');
 });
@@ -312,7 +318,6 @@ $('shop-form').addEventListener('submit', async event => {
   submitButton.textContent = 'Ana aika buƙata...';
 
   try {
-    // Duba ko mai amfani ya riga ya mallaki shago.
     const { data: existingShop, error: checkError } = await supabase
       .from('shops')
       .select('id, name, status')
@@ -333,7 +338,6 @@ $('shop-form').addEventListener('submit', async event => {
       return;
     }
 
-    // Database ne zai sanya status = pending.
     const { error: insertError } = await supabase
       .from('shops')
       .insert({
@@ -361,12 +365,197 @@ $('shop-form').addEventListener('submit', async event => {
   }
 });
 
+/* ADMIN DASHBOARD */
+
+function setAdminMessage(text, warning = false) {
+  const status = $('admin-status');
+  status.textContent = text;
+  status.classList.toggle('warning', warning);
+}
+
+function makeShopCard(shop) {
+  const card = document.createElement('article');
+  card.className = 'listing-card';
+
+  const title = document.createElement('h3');
+  title.textContent = shop.name;
+
+  const description = document.createElement('p');
+  description.textContent = shop.description || 'Babu bayanin shago.';
+
+  const status = document.createElement('p');
+  status.textContent = `Matsayi: ${shop.status}`;
+
+  const date = document.createElement('small');
+  date.textContent = shop.created_at
+    ? `An ƙirƙira: ${new Date(shop.created_at).toLocaleDateString('ha-NG')}`
+    : '';
+
+  const actions = document.createElement('div');
+  actions.className = 'hero-actions';
+
+  if (shop.status === 'pending' || shop.status === 'suspended') {
+    const approveButton = document.createElement('button');
+    approveButton.className = 'btn btn-primary';
+    approveButton.textContent = 'Amince da shago';
+    approveButton.addEventListener('click', () => {
+      changeShopStatus(shop.id, 'approved', approveButton);
+    });
+    actions.appendChild(approveButton);
+  }
+
+  if (shop.status === 'approved') {
+    const suspendButton = document.createElement('button');
+    suspendButton.className = 'btn btn-outline';
+    suspendButton.textContent = 'Dakatar da shago';
+    suspendButton.addEventListener('click', () => {
+      changeShopStatus(shop.id, 'suspended', suspendButton);
+    });
+    actions.appendChild(suspendButton);
+  }
+
+  card.append(title, description, status, date, actions);
+
+  return card;
+}
+
+function renderShopGroup(elementId, shops, emptyMessage) {
+  const root = $(elementId);
+  root.replaceChildren();
+
+  if (!shops.length) {
+    const note = document.createElement('p');
+    note.textContent = emptyMessage;
+    root.appendChild(note);
+    return;
+  }
+
+  shops.forEach(shop => {
+    root.appendChild(makeShopCard(shop));
+  });
+}
+
+async function loadAdminDashboard() {
+  adminVerified = false;
+
+  if (!supabase) {
+    setAdminMessage('Ba a haɗa database ba. Duba config.js.', true);
+    return;
+  }
+
+  if (!currentUser) {
+    setAdminMessage('Da farko ka shiga account ɗinka.', true);
+    return;
+  }
+
+  setAdminMessage('Ana tabbatar da izinin Admin...');
+
+  try {
+    const { data: isAdmin, error: permissionError } = await supabase
+      .rpc('is_yeeszone_admin');
+
+    if (permissionError) {
+      throw permissionError;
+    }
+
+    if (isAdmin !== true) {
+      setAdminMessage(
+        'Ba ka da izinin shiga Admin Dashboard.', true
+      );
+
+      renderShopGroup('admin-pending', [], 'Ba a nuna bayanai ba.');
+      renderShopGroup('admin-approved', [], 'Ba a nuna bayanai ba.');
+      renderShopGroup('admin-suspended', [], 'Ba a nuna bayanai ba.');
+      return;
+    }
+
+    adminVerified = true;
+    setAdminMessage('An tabbatar da izinin Admin. Ana ɗauko shaguna...');
+
+    const { data: shops, error: shopsError } = await supabase
+      .from('shops')
+      .select('id, owner_id, name, description, status, created_at')
+      .order('created_at', { ascending: false });
+
+    if (shopsError) {
+      throw shopsError;
+    }
+
+    const allShops = shops || [];
+
+    renderShopGroup(
+      'admin-pending',
+      allShops.filter(shop => shop.status === 'pending'),
+      'Babu buƙatar shago da ke jira a yanzu.'
+    );
+
+    renderShopGroup(
+      'admin-approved',
+      allShops.filter(shop => shop.status === 'approved'),
+      'Babu shagon da aka amince da shi tukuna.'
+    );
+
+    renderShopGroup(
+      'admin-suspended',
+      allShops.filter(shop => shop.status === 'suspended'),
+      'Babu shagon da aka dakatar.'
+    );
+
+    setAdminMessage(`An loda shaguna ${allShops.length} cikin nasara.`);
+
+  } catch (error) {
+    adminVerified = false;
+    setAdminMessage('An samu matsala: ' + error.message, true);
+  }
+}
+
+async function changeShopStatus(shopId, newStatus, button) {
+  if (!supabase || !currentUser || !adminVerified) {
+    setAdminMessage('Ba ka da izinin yin wannan aiki.', true);
+    return;
+  }
+
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Ana aiki...';
+
+  try {
+    const { error } = await supabase.rpc('admin_set_shop_status', {
+      p_shop_id: shopId,
+      p_status: newStatus
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    setAdminMessage(
+      newStatus === 'approved'
+        ? 'An amince da shagon cikin nasara.'
+        : 'An dakatar da shagon cikin nasara.'
+    );
+
+    await loadAdminDashboard();
+
+  } catch (error) {
+    setAdminMessage('Ba a kammala aikin ba: ' + error.message, true);
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
+$('admin-refresh').addEventListener('click', () => {
+  loadAdminDashboard();
+});
+
 if (supabase) {
   supabase.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user || null;
+    adminVerified = false;
     updateAccountUI();
   });
 }
 
 await refreshSession();
 await loadListings();
+      
