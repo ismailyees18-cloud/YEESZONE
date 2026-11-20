@@ -1,561 +1,722 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let currentUser = null;
+let currentShop = null;
+let adminVerified = false;
+let currentView = "home";
 
 const $ = (id) => document.getElementById(id);
 
-const configured =
-  SUPABASE_URL.startsWith('https://') &&
-  !SUPABASE_URL.includes('YOUR_PROJECT') &&
-  SUPABASE_ANON_KEY &&
-  !SUPABASE_ANON_KEY.includes('YOUR_PUBLISHABLE');
-
-const supabase = configured
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null;
-
-let currentUser = null;
-let allListings = [];
-let adminVerified = false;
-
-$('year').textContent = new Date().getFullYear();
-
-function message(text, warning = false) {
-  $('status').textContent = text;
-  $('status').classList.toggle('warning', warning);
+function message(id, text, isError = false) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = isError ? "#b42318" : "#16803c";
 }
 
-function updateAccountUI() {
-  $('user-label').textContent = currentUser
-    ? currentUser.email
-    : 'Ba a shiga ba';
-
-  $('auth-open').classList.toggle('hidden', !!currentUser);
-  $('logout').classList.toggle('hidden', !currentUser);
+function makeElement(tag, className, text) {
+  const el = document.createElement(tag);
+  if (className) el.className = className;
+  if (text !== undefined) el.textContent = text;
+  return el;
 }
 
-function money(value) {
-  const n = Number(value);
-
-  return Number.isFinite(n)
-    ? `₦${n.toLocaleString('en-NG')}`
-    : 'Farashi bai bayyana ba';
-}
-
-function renderListings(items) {
-  const root = $('listings');
-  root.innerHTML = '';
-
-  if (!items.length) {
-    root.innerHTML = '<div class="panel"><strong>Ba a samu kaya ba tukuna.</strong><p>Da zarar an saka listings a database, za su bayyana a nan.</p></div>';
-    return;
-  }
-
-  for (const item of items) {
-    const card = document.createElement('article');
-    card.className = 'listing-card';
-
-    const title = item.title || item.name || 'Listing';
-    const description = item.description || 'Babu cikakken bayani tukuna.';
-    const type = item.type || item.listing_type || 'Kaya / Sabis';
-
-    card.innerHTML = '<span class="listing-type"></span><h3></h3><p></p><div class="price"></div>';
-
-    card.querySelector('.listing-type').textContent =
-      String(type).toUpperCase();
-
-    card.querySelector('h3').textContent = title;
-    card.querySelector('p').textContent = description;
-
-    card.querySelector('.price').textContent =
-      item.price == null
-        ? 'A tuntubi mai sayarwa'
-        : money(item.price);
-
-    root.appendChild(card);
+function safeImageUrl(value) {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    return ["https:", "http:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
   }
 }
 
-async function loadListings() {
-  if (!supabase) {
-    message('A saka Project URL da Publishable key a config.js.', true);
-    return;
-  }
-
-  message('Ana ɗauko kayayyaki...');
-
-  const { data, error } = await supabase
-    .from('listings')
-    .select('*')
-    .limit(30);
-
-  if (error) {
-    message(`Ba a iya ɗauko listings ba: ${error.message}`, true);
-    return;
-  }
-
-  allListings = data || [];
-  renderListings(allListings);
-  message(`${allListings.length} listing(s) aka samu.`);
+function formatPrice(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "Ba a saka farashi ba";
+  return "₦" + number.toLocaleString("en-NG");
 }
 
-function showView(name) {
-  for (const view of ['home', 'seller', 'admin']) {
-    $(view + '-view').classList.toggle('hidden', view !== name);
-  }
+function makeSlug(value) {
+  return value.toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") + "-" + Date.now().toString().slice(-6);
+}
 
-  document.querySelectorAll('.nav-btn').forEach(button => {
-    button.classList.toggle('active', button.dataset.view === name);
+// NAVIGATION
+
+function showView(view) {
+  currentView = view;
+
+  ["home", "seller", "admin"].forEach((name) => {
+    const section = $(`${name}-view`);
+    if (section) section.hidden = name !== view;
   });
 
-  if (name === 'admin') {
-    loadAdminDashboard();
-  }
+  if (view === "home") loadListings();
+  if (view === "seller") loadSellerDashboard();
+  if (view === "admin") loadAdminDashboard();
 }
 
-document.querySelectorAll('.nav-btn').forEach(button => {
-  button.addEventListener('click', () => showView(button.dataset.view));
+document.querySelectorAll("[data-view]").forEach((button) => {
+  button.addEventListener("click", () => showView(button.dataset.view));
 });
 
-$('browse-btn').addEventListener('click', () => {
-  $('listings-section').scrollIntoView({ behavior: 'smooth' });
+$("browse-btn")?.addEventListener("click", () => {
+  showView("home");
+  $("listings-section")?.scrollIntoView({ behavior: "smooth" });
 });
 
-$('seller-cta').addEventListener('click', () => showView('seller'));
+$("seller-cta")?.addEventListener("click", () => showView("seller"));
 
-$('search').addEventListener('input', event => {
-  const q = event.target.value.toLowerCase();
+// AUTHENTICATION
 
-  renderListings(allListings.filter(item =>
-    [item.title, item.name, item.description, item.type, item.listing_type]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-      .includes(q)
-  ));
-});
+function setUserUI() {
+  const label = $("user-label");
+  if (label) label.textContent = currentUser ? currentUser.email : "Ba a shiga ba";
 
-$('auth-open').addEventListener('click', () => {
-  $('auth-message').textContent = '';
-  $('auth-dialog').showModal();
-});
+  const logout = $("logout");
+  if (logout) logout.hidden = !currentUser;
 
-$('login-btn').addEventListener('click', async () => {
-  if (!supabase) {
-    $('auth-message').textContent =
-      'Ba a haɗa database ba. Duba config.js.';
-    return;
-  }
+  const authOpen = $("auth-open");
+  if (authOpen) authOpen.hidden = !!currentUser;
+}
 
-  const email = $('email').value.trim();
-  const password = $('password').value;
+function openAuthDialog() {
+  const dialog = $("auth-dialog");
+  if (!dialog) return;
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+}
+
+function closeAuthDialog() {
+  const dialog = $("auth-dialog");
+  if (!dialog) return;
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+function requireLogin() {
+  if (currentUser) return true;
+  message("auth-message", "Da fatan za ka fara shiga account ɗinka.", true);
+  openAuthDialog();
+  return false;
+}
+
+$("auth-open")?.addEventListener("click", openAuthDialog);
+
+$("login-btn")?.addEventListener("click", async () => {
+  const email = $("email")?.value.trim();
+  const password = $("password")?.value;
 
   if (!email || !password) {
-    $('auth-message').textContent =
-      'Shigar da email da password.';
+    message("auth-message", "Ka cika email da password.", true);
     return;
   }
 
-  $('login-btn').disabled = true;
-  $('auth-message').textContent = 'Ana shiga...';
-
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-
-    if (error) {
-      $('auth-message').textContent = error.message;
-      return;
-    }
-
-    currentUser = data.user;
-    updateAccountUI();
-    $('auth-dialog').close();
-    $('auth-form').reset();
-
-  } catch (error) {
-    $('auth-message').textContent = error.message;
-  } finally {
-    $('login-btn').disabled = false;
-  }
-});
-
-$('signup-btn').addEventListener('click', async () => {
-  if (!supabase) {
-    $('auth-message').textContent =
-      'Ba a haɗa database ba. Duba config.js.';
-    return;
-  }
-
-  const email = $('email').value.trim();
-  const password = $('password').value;
-
-  if (!email || !password || password.length < 6) {
-    $('auth-message').textContent =
-      'Shigar da email da password mai aƙalla haruffa 6.';
-    return;
-  }
-
-  $('signup-btn').disabled = true;
-  $('auth-message').textContent = 'Ana ƙirƙirar account...';
-
-  try {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password
-    });
-
-    $('auth-message').textContent = error
-      ? error.message
-      : 'An aika buƙatar ƙirƙirar account. Duba email idan an nemi tabbatarwa.';
-
-  } catch (error) {
-    $('auth-message').textContent = error.message;
-  } finally {
-    $('signup-btn').disabled = false;
-  }
-});
-
-$('logout').addEventListener('click', async () => {
-  if (!supabase) return;
-
-  const { error } = await supabase.auth.signOut();
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    message(error.message, true);
+    message("auth-message", error.message, true);
     return;
   }
+
+  currentUser = data.user;
+  setUserUI();
+  closeAuthDialog();
+  await refreshAfterLogin();
+});
+
+$("signup-btn")?.addEventListener("click", async () => {
+  const email = $("email")?.value.trim();
+  const password = $("password")?.value;
+
+  if (!email || !password) {
+    message("auth-message", "Ka cika email da password.", true);
+    return;
+  }
+
+  const { data, error } = await supabase.auth.signUp({ email, password });
+
+  if (error) {
+    message("auth-message", error.message, true);
+    return;
+  }
+
+  if (data.session && data.user) {
+    currentUser = data.user;
+    setUserUI();
+    closeAuthDialog();
+    await refreshAfterLogin();
+  } else {
+    message("auth-message", "An aika buƙatar ƙirƙirar account. Duba email idan an nemi tabbatarwa.");
+  }
+});
+
+$("logout")?.addEventListener("click", async () => {
+  const { error } = await supabase.auth.signOut();
+  if (error) return alert(error.message);
 
   currentUser = null;
+  currentShop = null;
   adminVerified = false;
-  updateAccountUI();
-  showView('home');
+  setUserUI();
+  showView("home");
 });
 
-async function refreshSession() {
-  if (!supabase) {
-    $('user-label').textContent = 'Ba a haɗa database ba';
-    return;
-  }
-
-  const { data, error } = await supabase.auth.getSession();
-
-  if (error) {
-    message(error.message, true);
-    return;
-  }
-
-  currentUser = data.session?.user || null;
-  updateAccountUI();
+async function refreshAfterLogin() {
+  setUserUI();
+  await loadListings();
+  if (currentView === "seller") await loadSellerDashboard();
+  if (currentView === "admin") await loadAdminDashboard();
 }
 
-/* SHOP REGISTRATION */
+supabase.auth.onAuthStateChange((_event, session) => {
+  currentUser = session?.user ?? null;
+  setUserUI();
 
-function makeShopSlug(name) {
-  const base = name
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 50) || 'shop';
-
-  const suffix = Math.random().toString(36).slice(2, 8);
-
-  return `${base}-${suffix}`;
-}
-
-function shopStatusText(status) {
-  if (status === 'approved') {
-    return 'An amince da shagonka.';
-  }
-
-  if (status === 'suspended') {
-    return 'An dakatar da shagonka. Tuntuɓi masu gudanarwa.';
-  }
-
-  return 'An riga an aika buƙatar shagonka. Ana jiran amincewa.';
-}
-
-$('shop-form').addEventListener('submit', async event => {
-  event.preventDefault();
-
-  const shopMessage = $('shop-message');
-  const submitButton = $('shop-submit');
-
-  shopMessage.textContent = '';
-
-  if (!supabase) {
-    shopMessage.textContent =
-      'Ba a haɗa database ba. Duba config.js.';
-    return;
-  }
-
-  if (!currentUser) {
-    shopMessage.textContent =
-      'Da farko ka shiga account ɗinka kafin buɗe shago.';
-    return;
-  }
-
-  const name = $('shop-name').value.trim();
-  const description = $('shop-description').value.trim();
-
-  if (name.length < 2) {
-    shopMessage.textContent =
-      'Sunan shago ya zama aƙalla haruffa biyu.';
-    return;
-  }
-
-  if (!description) {
-    shopMessage.textContent =
-      'Ka rubuta bayanin shagonka.';
-    return;
-  }
-
-  submitButton.disabled = true;
-  submitButton.textContent = 'Ana aika buƙata...';
-
-  try {
-    const { data: existingShop, error: checkError } = await supabase
-      .from('shops')
-      .select('id, name, status')
-      .eq('owner_id', currentUser.id)
-      .limit(1)
-      .maybeSingle();
-
-    if (checkError) {
-      throw new Error(
-        'Ba a iya duba bayanan shago ba: ' + checkError.message
-      );
-    }
-
-    if (existingShop) {
-      shopMessage.textContent =
-        `${shopStatusText(existingShop.status)} Sunan shago: ${existingShop.name}`;
-
+  Promise.resolve().then(async () => {
+    if (!currentUser) {
+      currentShop = null;
+      adminVerified = false;
+      if (currentView !== "home") showView("home");
       return;
     }
-
-    const { error: insertError } = await supabase
-      .from('shops')
-      .insert({
-        owner_id: currentUser.id,
-        name,
-        slug: makeShopSlug(name),
-        description
-      });
-
-    if (insertError) {
-      throw insertError;
-    }
-
-    shopMessage.textContent =
-      'An aika buƙatar buɗe shago cikin nasara! Ana jiran amincewar masu gudanarwa.';
-
-    $('shop-form').reset();
-
-  } catch (error) {
-    shopMessage.textContent =
-      'An samu matsala: ' + error.message;
-  } finally {
-    submitButton.disabled = false;
-    submitButton.textContent = 'Miƙa buƙatar buɗe shago';
-  }
+    await refreshAfterLogin();
+  });
 });
 
-/* ADMIN DASHBOARD */
+// MARKETPLACE
 
-function setAdminMessage(text, warning = false) {
-  const status = $('admin-status');
-  status.textContent = text;
-  status.classList.toggle('warning', warning);
-}
+async function loadListings() {
+  const container = $("listings");
+  if (!container) return;
 
-function makeShopCard(shop) {
-  const card = document.createElement('article');
-  card.className = 'listing-card';
+  container.replaceChildren();
+  message("status", "Ana loda kayayyaki...");
 
-  const title = document.createElement('h3');
-  title.textContent = shop.name;
+  const { data, error } = await supabase
+    .from("listings")
+    .select("*")
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(50);
 
-  const description = document.createElement('p');
-  description.textContent = shop.description || 'Babu bayanin shago.';
-
-  const status = document.createElement('p');
-  status.textContent = `Matsayi: ${shop.status}`;
-
-  const date = document.createElement('small');
-  date.textContent = shop.created_at
-    ? `An ƙirƙira: ${new Date(shop.created_at).toLocaleDateString('ha-NG')}`
-    : '';
-
-  const actions = document.createElement('div');
-  actions.className = 'hero-actions';
-
-  if (shop.status === 'pending' || shop.status === 'suspended') {
-    const approveButton = document.createElement('button');
-    approveButton.className = 'btn btn-primary';
-    approveButton.textContent = 'Amince da shago';
-    approveButton.addEventListener('click', () => {
-      changeShopStatus(shop.id, 'approved', approveButton);
-    });
-    actions.appendChild(approveButton);
-  }
-
-  if (shop.status === 'approved') {
-    const suspendButton = document.createElement('button');
-    suspendButton.className = 'btn btn-outline';
-    suspendButton.textContent = 'Dakatar da shago';
-    suspendButton.addEventListener('click', () => {
-      changeShopStatus(shop.id, 'suspended', suspendButton);
-    });
-    actions.appendChild(suspendButton);
-  }
-
-  card.append(title, description, status, date, actions);
-
-  return card;
-}
-
-function renderShopGroup(elementId, shops, emptyMessage) {
-  const root = $(elementId);
-  root.replaceChildren();
-
-  if (!shops.length) {
-    const note = document.createElement('p');
-    note.textContent = emptyMessage;
-    root.appendChild(note);
+  if (error) {
+    message("status", "An samu matsala: " + error.message, true);
     return;
   }
 
-  shops.forEach(shop => {
-    root.appendChild(makeShopCard(shop));
+  renderMarketplace(data || []);
+}
+
+function renderMarketplace(items) {
+  const container = $("listings");
+  if (!container) return;
+
+  container.replaceChildren();
+
+  if (!items.length) {
+    message("status", "Babu kayayyakin da aka amince da su tukuna.");
+    return;
+  }
+
+  message("status", `${items.length} kayayyaki sun bayyana.`);
+
+  items.forEach((item) => {
+    const card = makeElement("article", "listing-card");
+
+    const imageUrl = safeImageUrl(item.image_url);
+    if (imageUrl) {
+      const image = makeElement("img", "listing-image");
+      image.src = imageUrl;
+      image.alt = item.title || "Kayan sayarwa";
+      image.loading = "lazy";
+      card.append(image);
+    }
+
+    card.append(makeElement("h3", "", item.title || "Kayan sayarwa"));
+    card.append(makeElement("p", "", item.description || ""));
+    card.append(makeElement("strong", "", formatPrice(item.price)));
+    container.append(card);
   });
+}
+
+$("search")?.addEventListener("input", () => {
+  const term = $("search").value.trim().toLowerCase();
+
+  document.querySelectorAll("#listings .listing-card").forEach((card) => {
+    card.hidden = !card.textContent.toLowerCase().includes(term);
+  });
+});
+
+// SHOP REGISTRATION
+
+$("shop-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!requireLogin()) return;
+
+  const name = $("shop-name")?.value.trim();
+  const description = $("shop-description")?.value.trim() || "";
+
+  if (!name) {
+    message("shop-message", "Ka saka sunan shago.", true);
+    return;
+  }
+
+  const { data: existing, error: checkError } = await supabase
+    .from("shops")
+    .select("id")
+    .eq("owner_id", currentUser.id)
+    .limit(1);
+
+  if (checkError) {
+    message("shop-message", checkError.message, true);
+    return;
+  }
+
+  if (existing?.length) {
+    message("shop-message", "Kana da shago a baya. Duba matsayin shagonka.");
+    await loadSellerDashboard();
+    return;
+  }
+
+  const { error } = await supabase.from("shops").insert({
+    owner_id: currentUser.id,
+    name,
+    slug: makeSlug(name),
+    description
+  });
+
+  if (error) {
+    message("shop-message", error.message, true);
+    return;
+  }
+
+  $("shop-form").reset();
+  message("shop-message", "An aika buƙatar buɗe shago cikin nasara! Ana jiran amincewar Admin.");
+  await loadSellerDashboard();
+});
+
+// SELLER DASHBOARD
+
+function setListingFormEnabled(enabled) {
+  const form = $("listing-form");
+  if (!form) return;
+
+  form.querySelectorAll("input, textarea, select, button").forEach((field) => {
+    field.disabled = !enabled;
+  });
+}
+
+async function loadSellerDashboard() {
+  if (!currentUser) {
+    currentShop = null;
+    message("seller-status", "Sai ka shiga account kafin amfani da Seller Dashboard.", true);
+    setListingFormEnabled(false);
+    return;
+  }
+
+  message("seller-status", "Ana duba matsayin shagonka...");
+
+  const { data: shops, error } = await supabase
+    .from("shops")
+    .select("id, name, status")
+    .eq("owner_id", currentUser.id)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    message("seller-status", error.message, true);
+    setListingFormEnabled(false);
+    return;
+  }
+
+  currentShop = shops?.[0] || null;
+
+  if (!currentShop) {
+    message("seller-status", "Ba ka da shago tukuna. Cika fom ɗin buɗe shago.");
+    setListingFormEnabled(false);
+    renderSellerListings([]);
+    return;
+  }
+
+  if (currentShop.status === "approved") {
+    message("seller-status", `An amince da shagon "${currentShop.name}". Za ka iya saka kaya.`);
+    message("listing-form-notice", "Sabon kaya zai jira amincewar Admin.");
+    setListingFormEnabled(true);
+    await loadSellerListings();
+    return;
+  }
+
+  if (currentShop.status === "suspended") {
+    message("seller-status", "An dakatar da shagonka. Tuntuɓi Admin.", true);
+  } else {
+    message("seller-status", "Ana jiran Admin ya amince da shagonka.");
+  }
+
+  message("listing-form-notice", "Ba za ka iya saka kaya ba sai an amince da shagonka.", true);
+  setListingFormEnabled(false);
+  await loadSellerListings();
+}
+
+$("seller-refresh")?.addEventListener("click", loadSellerDashboard);
+
+// ADD LISTING
+
+$("listing-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  if (!requireLogin()) return;
+
+  if (!currentShop || currentShop.status !== "approved") {
+    message("listing-message", "Sai an amince da shagonka kafin ka saka kaya.", true);
+    return;
+  }
+
+  const title = $("listing-title")?.value.trim();
+  const description = $("listing-description")?.value.trim();
+  const listing_type = $("listing-type")?.value || "product";
+  const price = Number($("listing-price")?.value);
+  const stock = Number($("listing-stock")?.value || 0);
+  const image_url = $("listing-image")?.value.trim() || "";
+
+  if (!title || !description || !Number.isFinite(price) || price < 0) {
+    message("listing-message", "Ka duba sunan kaya, bayani da farashi.", true);
+    return;
+  }
+
+  if (!Number.isInteger(stock) || stock < 0) {
+    message("listing-message", "Adadin kaya bai dace ba.", true);
+    return;
+  }
+
+  if (image_url && !safeImageUrl(image_url)) {
+    message("listing-message", "Link ɗin hoton dole ya kasance HTTP ko HTTPS.", true);
+    return;
+  }
+
+  const { error } = await supabase.from("listings").insert({
+    shop_id: currentShop.id,
+    title,
+    description,
+    listing_type,
+    price,
+    stock,
+    image_url
+  });
+
+  if (error) {
+    message("listing-message", "Ba a iya saka kayan ba: " + error.message, true);
+    return;
+  }
+
+  $("listing-form").reset();
+  message("listing-message", "An aika kayan cikin nasara. Yana jiran amincewar Admin.");
+  await loadSellerListings();
+});
+
+// SELLER'S LISTINGS
+
+async function loadSellerListings() {
+  if (!currentShop) {
+    renderSellerListings([]);
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("listings")
+    .select("*")
+    .eq("shop_id", currentShop.id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    message("seller-status", error.message, true);
+    return;
+  }
+
+  renderSellerListings(data || []);
+}
+
+function renderSellerListings(items) {
+  const container = $("seller-listings");
+  if (!container) return;
+
+  container.replaceChildren();
+
+  if (!items.length) {
+    container.append(makeElement("p", "", "Ba ka saka kaya ba tukuna."));
+    return;
+  }
+
+  items.forEach((item) => {
+    const card = makeElement("article", "listing-card");
+    card.append(makeElement("h3", "", item.title || "Kaya"));
+    card.append(makeElement("p", "", item.description || ""));
+    card.append(makeElement("p", "", "Farashi: " + formatPrice(item.price)));
+    card.append(makeElement("p", "", "Adadi: " + item.stock));
+    card.append(makeElement("p", "", "Matsayi: " + item.status));
+
+    const edit = makeElement("button", "", "Gyara");
+    edit.type = "button";
+    edit.addEventListener("click", () => editListing(item));
+    card.append(edit);
+
+    const remove = makeElement("button", "", "Goge");
+    remove.type = "button";
+    remove.addEventListener("click", () => deleteListing(item));
+    card.append(remove);
+
+    container.append(card);
+  });
+}
+
+async function editListing(item) {
+  const title = prompt("Sunan kaya:", item.title || "");
+  if (title === null) return;
+
+  const description = prompt("Bayanin kaya:", item.description || "");
+  if (description === null) return;
+
+  const priceText = prompt("Farashi:", String(item.price ?? ""));
+  if (priceText === null) return;
+
+  const stockText = prompt("Adadin kaya:", String(item.stock ?? 0));
+  if (stockText === null) return;
+
+  const image_url = prompt("Link ɗin hoton kaya:", item.image_url || "");
+  if (image_url === null) return;
+
+  const price = Number(priceText);
+  const stock = Number(stockText);
+
+  if (!title.trim() || !description.trim() || !Number.isFinite(price) ||
+      price < 0 || !Number.isInteger(stock) || stock < 0) {
+    alert("Ka duba bayanan da ka shigar.");
+    return;
+  }
+
+  if (image_url.trim() && !safeImageUrl(image_url.trim())) {
+    alert("Link ɗin hoton bai dace ba.");
+    return;
+  }
+
+  const { error } = await supabase
+    .from("listings")
+    .update({
+      title: title.trim(),
+      description: description.trim(),
+      price,
+      stock,
+      image_url: image_url.trim(),
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", item.id);
+
+  if (error) {
+    alert("An kasa gyara kaya: " + error.message);
+    return;
+  }
+
+  alert("An gyara bayanan kayan.");
+  await loadSellerListings();
+}
+
+async function deleteListing(item) {
+  if (!confirm(`Kana son goge "${item.title}"?`)) return;
+
+  const { error } = await supabase
+    .from("listings")
+    .delete()
+    .eq("id", item.id);
+
+  if (error) {
+    alert("An kasa goge kaya: " + error.message);
+    return;
+  }
+
+  await loadSellerListings();
+}
+
+// ADMIN DASHBOARD
+
+async function checkAdmin() {
+  if (!currentUser) return false;
+
+  const { data, error } = await supabase.rpc("is_yeeszone_admin");
+  if (error) {
+    console.error(error.message);
+    return false;
+  }
+
+  return data === true;
 }
 
 async function loadAdminDashboard() {
-  adminVerified = false;
-
-  if (!supabase) {
-    setAdminMessage('Ba a haɗa database ba. Duba config.js.', true);
-    return;
-  }
-
   if (!currentUser) {
-    setAdminMessage('Da farko ka shiga account ɗinka.', true);
+    adminVerified = false;
+    message("admin-status", "Sai ka shiga account na Admin.", true);
     return;
   }
 
-  setAdminMessage('Ana tabbatar da izinin Admin...');
+  message("admin-status", "Ana tabbatar da izinin Admin...");
+  adminVerified = await checkAdmin();
 
-  try {
-    const { data: isAdmin, error: permissionError } = await supabase
-      .rpc('is_yeeszone_admin');
-
-    if (permissionError) {
-      throw permissionError;
-    }
-
-    if (isAdmin !== true) {
-      setAdminMessage(
-        'Ba ka da izinin shiga Admin Dashboard.', true
-      );
-
-      renderShopGroup('admin-pending', [], 'Ba a nuna bayanai ba.');
-      renderShopGroup('admin-approved', [], 'Ba a nuna bayanai ba.');
-      renderShopGroup('admin-suspended', [], 'Ba a nuna bayanai ba.');
-      return;
-    }
-
-    adminVerified = true;
-    setAdminMessage('An tabbatar da izinin Admin. Ana ɗauko shaguna...');
-
-    const { data: shops, error: shopsError } = await supabase
-      .from('shops')
-      .select('id, owner_id, name, description, status, created_at')
-      .order('created_at', { ascending: false });
-
-    if (shopsError) {
-      throw shopsError;
-    }
-
-    const allShops = shops || [];
-
-    renderShopGroup(
-      'admin-pending',
-      allShops.filter(shop => shop.status === 'pending'),
-      'Babu buƙatar shago da ke jira a yanzu.'
-    );
-
-    renderShopGroup(
-      'admin-approved',
-      allShops.filter(shop => shop.status === 'approved'),
-      'Babu shagon da aka amince da shi tukuna.'
-    );
-
-    renderShopGroup(
-      'admin-suspended',
-      allShops.filter(shop => shop.status === 'suspended'),
-      'Babu shagon da aka dakatar.'
-    );
-
-    setAdminMessage(`An loda shaguna ${allShops.length} cikin nasara.`);
-
-  } catch (error) {
-    adminVerified = false;
-    setAdminMessage('An samu matsala: ' + error.message, true);
-  }
-}
-
-async function changeShopStatus(shopId, newStatus, button) {
-  if (!supabase || !currentUser || !adminVerified) {
-    setAdminMessage('Ba ka da izinin yin wannan aiki.', true);
+  if (!adminVerified) {
+    message("admin-status", "Ba ka da izinin shiga wannan shafin.", true);
+    ["admin-pending", "admin-approved", "admin-suspended", "admin-listing-pending"]
+      .forEach((id) => $(id)?.replaceChildren());
     return;
   }
 
-  const originalText = button.textContent;
-  button.disabled = true;
-  button.textContent = 'Ana aiki...';
-
-  try {
-    const { error } = await supabase.rpc('admin_set_shop_status', {
-      p_shop_id: shopId,
-      p_status: newStatus
-    });
-
-    if (error) {
-      throw error;
-    }
-
-    setAdminMessage(
-      newStatus === 'approved'
-        ? 'An amince da shagon cikin nasara.'
-        : 'An dakatar da shagon cikin nasara.'
-    );
-
-    await loadAdminDashboard();
-
-  } catch (error) {
-    setAdminMessage('Ba a kammala aikin ba: ' + error.message, true);
-    button.disabled = false;
-    button.textContent = originalText;
-  }
+  message("admin-status", "An tabbatar da izinin Admin.");
+  await loadAdminShops();
+  await loadPendingListings();
 }
 
-$('admin-refresh').addEventListener('click', () => {
-  loadAdminDashboard();
-});
+$("admin-refresh")?.addEventListener("click", loadAdminDashboard);
 
-if (supabase) {
-  supabase.auth.onAuthStateChange((_event, session) => {
-    currentUser = session?.user || null;
-    adminVerified = false;
-    updateAccountUI();
+async function loadAdminShops() {
+  const { data, error } = await supabase
+    .from("shops")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    message("admin-status", "An kasa loda shaguna: " + error.message, true);
+    return;
+  }
+
+  const groups = {
+    pending: $("admin-pending"),
+    approved: $("admin-approved"),
+    suspended: $("admin-suspended")
+  };
+
+  Object.values(groups).forEach((container) => container?.replaceChildren());
+
+  (data || []).forEach((shop) => {
+    const container = groups[shop.status];
+    if (!container) return;
+
+    const card = makeElement("article", "admin-shop-card");
+    card.append(makeElement("h3", "", shop.name || "Shago"));
+    card.append(makeElement("p", "", shop.description || ""));
+    card.append(makeElement("small", "", "Matsayi: " + shop.status));
+
+    if (shop.status !== "approved") {
+      const approve = makeElement("button", "", "Amince da shago");
+      approve.type = "button";
+      approve.addEventListener("click", () => changeShopStatus(shop.id, "approved"));
+      card.append(approve);
+    }
+
+    if (shop.status !== "suspended") {
+      const suspend = makeElement("button", "", "Dakatar da shago");
+      suspend.type = "button";
+      suspend.addEventListener("click", () => changeShopStatus(shop.id, "suspended"));
+      card.append(suspend);
+    }
+
+    if (shop.status !== "pending") {
+      const pending = makeElement("button", "", "Mayar zuwa jiran amincewa");
+      pending.type = "button";
+      pending.addEventListener("click", () => changeShopStatus(shop.id, "pending"));
+      card.append(pending);
+    }
+
+    container?.append(card);
   });
 }
 
-await refreshSession();
-await loadListings();
-      
+async function changeShopStatus(shopId, newStatus) {
+  if (!adminVerified) return;
+
+  const { error } = await supabase.rpc("admin_set_shop_status", {
+    p_shop_id: shopId,
+    p_status: newStatus
+  });
+
+  if (error) {
+    message("admin-status", "An kasa canza matsayin shago: " + error.message, true);
+    return;
+  }
+
+  message("admin-status", "An canza matsayin shago cikin nasara.");
+  await loadAdminShops();
+}
+
+// ADMIN APPROVES LISTINGS
+
+async function loadPendingListings() {
+  const container = $("admin-listing-pending");
+  if (!container || !adminVerified) return;
+
+  container.replaceChildren();
+
+  const { data, error } = await supabase
+    .from("listings")
+    .select("*")
+    .eq("status", "draft")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    container.append(makeElement("p", "", "An kasa loda kayayyaki: " + error.message));
+    return;
+  }
+
+  if (!data?.length) {
+    container.append(makeElement("p", "", "Babu sabon kaya da ke jiran amincewa."));
+    return;
+  }
+
+  data.forEach((item) => {
+    const card = makeElement("article", "admin-listing-card");
+    card.append(makeElement("h3", "", item.title || "Kaya"));
+    card.append(makeElement("p", "", item.description || ""));
+    card.append(makeElement("p", "", "Farashi: " + formatPrice(item.price)));
+    card.append(makeElement("p", "", "Adadi: " + item.stock));
+
+    const approve = makeElement("button", "", "Amince da kaya");
+    approve.type = "button";
+    approve.addEventListener("click", () => approveListing(item.id));
+    card.append(approve);
+
+    container.append(card);
+  });
+}
+
+async function approveListing(listingId) {
+  if (!adminVerified) return;
+  if (!confirm("Ka tabbatar kana son amincewa da wannan kaya?")) return;
+
+  const { error } = await supabase.rpc("admin_approve_listing", {
+    p_listing_id: listingId
+  });
+
+  if (error) {
+    message("admin-status", "An kasa amincewa da kaya: " + error.message, true);
+    return;
+  }
+
+  message("admin-status", "An amince da kaya cikin nasara.");
+  await loadPendingListings();
+  await loadListings();
+}
+
+// START
+
+async function startApp() {
+  const { data, error } = await supabase.auth.getSession();
+
+  if (error) console.error(error.message);
+
+  currentUser = data?.session?.user ?? null;
+  setUserUI();
+  await loadListings();
+}
+
+startApp();
