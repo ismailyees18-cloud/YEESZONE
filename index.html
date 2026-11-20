@@ -87,14 +87,47 @@
       </div>
     </section>
 
+    <!-- ADMIN DASHBOARD -->
     <section id="admin-view" class="view hidden">
       <div class="page-heading">
         <p class="eyebrow">CONTROL CENTER</p>
         <h1>Admin Dashboard</h1>
-        <p>Wannan shafin samfuri ne kawai. Ba a kunna ikon gudanarwa ba tukuna.</p>
+        <p>Gudanar da shagunan YEESZONE da buƙatun masu sayarwa.</p>
       </div>
-      <div class="notice warning">
-        Muhimmi: za a kare ayyukan admin ta hanyar tabbatar da role a database/server. Kada a dogara da ɓoye ko nuna maɓalli a browser kawai.
+
+      <div class="notice warning" id="admin-status" role="status">
+        Ana duba izinin Admin...
+      </div>
+
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">SHOP MANAGEMENT</p>
+            <h2>Gudanar da Shaguna</h2>
+          </div>
+          <button class="btn btn-primary" id="admin-refresh" type="button">
+            Sake loda bayanai
+          </button>
+        </div>
+
+        <h3>Buƙatun da ke jiran amincewa</h3>
+        <div id="admin-pending" class="listing-grid">
+          <p>Ana jiran bayanai...</p>
+        </div>
+
+        <hr>
+
+        <h3>Shagunan da aka amince da su</h3>
+        <div id="admin-approved" class="listing-grid">
+          <p>Ana jiran bayanai...</p>
+        </div>
+
+        <hr>
+
+        <h3>Shagunan da aka dakatar</h3>
+        <div id="admin-suspended" class="listing-grid">
+          <p>Ana jiran bayanai...</p>
+        </div>
       </div>
     </section>
   </main>
