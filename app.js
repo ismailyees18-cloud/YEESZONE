@@ -53,7 +53,15 @@ function showView(view) {
 
   ["home", "seller", "admin"].forEach((name) => {
     const section = $(`${name}-view`);
-    if (section) section.hidden = name !== view;
+
+    if (section) {
+      section.classList.toggle("hidden", name !== view);
+      section.hidden = name !== view;
+    }
+  });
+
+  document.querySelectorAll(".nav-btn").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === view);
   });
 
   if (view === "home") loadListings();
@@ -79,10 +87,16 @@ function setUserUI() {
   if (label) label.textContent = currentUser ? currentUser.email : "Ba a shiga ba";
 
   const logout = $("logout");
-  if (logout) logout.hidden = !currentUser;
+  if (logout) {
+    logout.hidden = !currentUser;
+    logout.classList.toggle("hidden", !currentUser);
+  }
 
   const authOpen = $("auth-open");
-  if (authOpen) authOpen.hidden = !!currentUser;
+  if (authOpen) {
+    authOpen.hidden = !!currentUser;
+    authOpen.classList.toggle("hidden", !!currentUser);
+  }
 }
 
 function openAuthDialog() {
