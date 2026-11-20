@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="ha">
 <head>
@@ -64,12 +63,18 @@
       </section>
     </section>
 
+    <!-- SELLER DASHBOARD -->
     <section id="seller-view" class="view hidden">
       <div class="page-heading">
         <p class="eyebrow">SELLER SPACE</p>
-        <h1>Buɗe Shagona a YEESZONE</h1>
-        <p>Cika bayanan shagonka domin neman izinin sayarwa.</p>
+        <h1>Seller Dashboard</h1>
+        <p>Gudanar da shagonka da kayayyakin da kake sayarwa.</p>
       </div>
+
+      <div id="seller-status" class="notice" role="status">
+        Ana duba bayanan shagonka...
+      </div>
+
       <div class="dashboard-grid">
         <article class="panel">
           <h3>Rajistar Shago</h3>
@@ -85,6 +90,60 @@
           </form>
         </article>
       </div>
+
+      <section class="section">
+        <div class="panel">
+          <p class="eyebrow">ADD NEW LISTING</p>
+          <h2>Saka Sabon Kaya ko Sabis</h2>
+
+          <div id="listing-form-notice" class="notice">
+            Za ka iya saka kaya idan an amince da shagonka.
+          </div>
+
+          <form id="listing-form">
+            <label for="listing-title">Sunan kaya ko sabis</label>
+            <input id="listing-title" type="text" required maxlength="150" placeholder="Misali: Takalmin maza">
+
+            <label for="listing-description">Cikakken bayani</label>
+            <textarea id="listing-description" required maxlength="2000" rows="4" placeholder="Bayyana bayanin kayan..."></textarea>
+
+            <label for="listing-type">Nau'in listing</label>
+            <select id="listing-type" required>
+              <option value="product">Kaya (Product)</option>
+              <option value="service">Sabis (Service)</option>
+            </select>
+
+            <label for="listing-price">Farashi (₦)</label>
+            <input id="listing-price" type="number" min="0" step="0.01" required placeholder="Misali: 15000">
+
+            <label for="listing-stock">Adadin kaya (Stock)</label>
+            <input id="listing-stock" type="number" min="0" step="1" value="1" required>
+
+            <label for="listing-image">Hoton kaya (Image URL)</label>
+            <input id="listing-image" type="url" placeholder="https://example.com/image.jpg">
+
+            <button class="btn btn-primary" id="listing-submit" type="submit">
+              Aika kaya domin dubawa
+            </button>
+            <p id="listing-message" class="form-message" role="status"></p>
+          </form>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">MY LISTINGS</p>
+            <h2>Kayayyakin Shagona</h2>
+          </div>
+          <button class="btn btn-primary" id="seller-refresh" type="button">
+            Sake loda
+          </button>
+        </div>
+        <div id="seller-listings" class="listing-grid">
+          <p>Ana jiran bayanai...</p>
+        </div>
+      </section>
     </section>
 
     <!-- ADMIN DASHBOARD -->
@@ -92,7 +151,7 @@
       <div class="page-heading">
         <p class="eyebrow">CONTROL CENTER</p>
         <h1>Admin Dashboard</h1>
-        <p>Gudanar da shagunan YEESZONE da buƙatun masu sayarwa.</p>
+        <p>Gudanar da shaguna da kayayyakin YEESZONE.</p>
       </div>
 
       <div class="notice warning" id="admin-status" role="status">
@@ -116,19 +175,28 @@
         </div>
 
         <hr>
-
         <h3>Shagunan da aka amince da su</h3>
         <div id="admin-approved" class="listing-grid">
           <p>Ana jiran bayanai...</p>
         </div>
 
         <hr>
-
         <h3>Shagunan da aka dakatar</h3>
         <div id="admin-suspended" class="listing-grid">
           <p>Ana jiran bayanai...</p>
         </div>
       </div>
+
+      <section class="section">
+        <div class="panel">
+          <p class="eyebrow">LISTING MODERATION</p>
+          <h2>Amincewa da Kayayyaki</h2>
+          <p>Sabbin kayayyakin da masu sayarwa suka aika domin dubawa.</p>
+          <div id="admin-listing-pending" class="listing-grid">
+            <p>Ana jiran bayanai...</p>
+          </div>
+        </div>
+      </section>
     </section>
   </main>
 
